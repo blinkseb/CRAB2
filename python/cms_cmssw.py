@@ -614,21 +614,31 @@ class Cmssw(JobType):
             tar.dereference=False
 
             ## Now check if any data dir(s) is present
-            self.dataExist = False
-            todo_list = [(i, i) for i in  os.listdir(swArea+"/src")]
-            while len(todo_list):
-                entry, name = todo_list.pop()
-                if name.startswith('crab_0_') or  name.startswith('.') or name == 'CVS':
-                    continue
-                if os.path.isdir(swArea+"/src/"+entry):
-                    entryPath = entry + '/'
-                    todo_list += [(entryPath + i, i) for i in  os.listdir(swArea+"/src/"+entry)]
-                    if name == 'data':
-                        self.dataExist=True
-                        common.logger.debug("data "+entry+" to be tarred")
-                        tar.add(swArea+"/src/"+entry,"src/"+entry)
-                    pass
-                pass
+            def listFolders(path):
+                return [f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
+
+            def tarData(tar, swArea, rootPath, level):
+                if level > 2:
+                    return False
+
+                dataExist = False
+                folders = listFolders(os.path.join(swArea, rootPath))
+
+                for f in folders:
+                    if f == "data":
+                        data = os.path.join(swArea, rootPath, f)
+                        package = os.path.join(rootPath, f)
+                        common.logger.debug("data '" + package + "' to be tarred")
+                        tar.add(data, package)
+                        dataExist = True
+                        continue
+
+                    r = tarData(tar, swArea, os.path.join(rootPath, f), level + 1)
+                    if not dataExist:
+                        dataExist = r
+
+                return dataExist
+            self.dataExist = tarData(tar, swArea, "src", 0)
 
             ### CMSSW ParameterSet
             if not self.pset is None:
